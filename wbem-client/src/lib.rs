@@ -60,7 +60,7 @@ pub trait ClientExt {
         url: impl IntoUrl,
         name: &str,
         namespace: &str,
-        params: impl Into<Option<BTreeMap<String, req::ParamValue>>>,
+        params: impl Into<Option<BTreeMap<String, String>>>,
     ) -> Pin<Box<dyn Future<Output = Result<Response, WbemClientError>>>>;
 }
 
@@ -70,7 +70,7 @@ impl ClientExt for Client {
         url: impl IntoUrl,
         name: &str,
         namespace: &str,
-        params: impl Into<Option<BTreeMap<String, req::ParamValue>>>,
+        params: impl Into<Option<BTreeMap<String, String>>>,
     ) -> Pin<Box<dyn Future<Output = Result<Response, WbemClientError>>>> {
         let namespace_path = namespace
             .split('/')
@@ -83,7 +83,7 @@ impl ClientExt for Client {
         if let Some(params) = params.into() {
             let mut params = params
                 .into_iter()
-                .map(|(k, v)| req::iparamvalue(&k, v.into()))
+                .map(|(k, v)| req::iparamvalue(&k, req::ParamValue::from(v).into()))
                 .flatten()
                 .collect();
 

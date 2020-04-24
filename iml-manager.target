@@ -46,6 +46,9 @@ After=iml-mailbox.service
 Requires=iml-postoffice.service
 After=iml-postoffice.service
 
+Requires=iml-sfa.service
+After=iml-sfa.service
+
 Requires=iml-ostpool.service
 After=iml-ostpool.service
 

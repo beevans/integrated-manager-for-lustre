@@ -38,7 +38,7 @@ srpm:
 	mkdir -p ${TMPDIR}/_topdir/{SOURCES,SPECS}
 	mkdir -p ${TMPDIR}/release/rust-iml
 	PQ_LIB_DIR=/usr/pgsql-9.6/lib cargo build --release
-	cp target/release/iml-{action-runner,agent,agent-comms,agent-daemon,api,mailbox,ntp,ostpool,postoffice,stats,device,warp-drive} \
+	cp target/release/iml-{action-runner,agent,agent-comms,agent-daemon,api,mailbox,ntp,ostpool,postoffice,sfa,stats,device,warp-drive} \
 		iml-agent-comms.service \
 		iml-mailbox.service \
 		iml-postoffice.service \
@@ -52,6 +52,7 @@ srpm:
 		iml-warp-drive/systemd-units/* \
 		iml-mailbox.conf \
 		iml-ntp.service \
+		iml-sfa.service \
 		${TMPDIR}/release/rust-iml
 	cp target/release/iml ${TMPDIR}/release/rust-iml
 	tar -czvf ${TMPDIR}/_topdir/SOURCES/rust-iml.tar.gz -C ${TMPDIR}/release/rust-iml .

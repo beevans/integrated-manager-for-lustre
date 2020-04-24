@@ -2,7 +2,7 @@
 // Use of this source code is governed by a MIT-style
 // license that can be found in the LICENSE file.
 
-use crate::cim_xml::resp::{Instance, Property};
+use crate::cim_xml::resp::{Cim, Instance, Property};
 use std::convert::{TryFrom, TryInto};
 use thiserror::Error;
 
@@ -69,7 +69,7 @@ impl<'a> TryFrom<&'a str> for HealthState {
 }
 
 #[derive(Debug)]
-struct SfaEnclosure {
+pub struct SfaEnclosure {
     element_name: String,
     health_state: HealthState,
     position: u8,
@@ -96,12 +96,27 @@ impl TryFrom<&Instance> for SfaEnclosure {
     }
 }
 
+impl TryFrom<Cim> for Vec<SfaEnclosure> {
+    type Error = SfaClassError;
+
+    fn try_from(x: Cim) -> Result<Self, Self::Error> {
+        x.message
+            .simplersp
+            .imethodresponse
+            .i_return_value
+            .named_instance
+            .iter()
+            .map(|x| SfaEnclosure::try_from(&x.instance))
+            .collect()
+    }
+}
+
 fn try_get_property<'a>(name: &str, xs: &'a [Property]) -> Result<&'a str, SfaClassError> {
     get_property(name, xs).ok_or_else(|| SfaClassError::PropertyNotfound(name.into()))
 }
 
 fn get_property<'a>(name: &str, xs: &'a [Property]) -> Option<&'a str> {
-    xs.into_iter()
+    xs.iter()
         .find(|p| p.name() == Some(name))
         .and_then(|p| match p {
             Property::Single { value, .. } => value.as_deref(),

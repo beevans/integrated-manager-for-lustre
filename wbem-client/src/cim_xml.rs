@@ -97,6 +97,12 @@ pub mod req {
         ClassName(String),
     }
 
+    impl<T: ToString> From<T> for ParamValue {
+        fn from(s: T) -> Self {
+            ParamValue::ClassName(s.to_string())
+        }
+    }
+
     impl<'a> From<ParamValue> for Event<'a> {
         fn from(x: ParamValue) -> Self {
             match x {

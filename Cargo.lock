@@ -1496,6 +1496,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "iml-sfa"
+version = "0.1.0"
+dependencies = [
+ "iml-tracing",
+ "thiserror",
+ "tokio",
+ "wbem-client",
+]
+
+[[package]]
 name = "iml-stats"
 version = "0.2.0"
 dependencies = [
