@@ -1,0 +1,156 @@
+// Copyright (c) 2020 DDN. All rights reserved.
+// Use of this source code is governed by a MIT-style
+// license that can be found in the LICENSE file.
+
+use crate::{agent_error::ImlAgentError, daemon_plugins::postoffice, env};
+use futures::future::TryFutureExt;
+use std::{collections::HashMap, fmt, path::PathBuf};
+use tokio::fs;
+
+#[derive(serde::Deserialize, structopt::StructOpt, Clone, Debug)]
+pub struct Config {
+    #[structopt(long)]
+    /// File system name
+    fs: String,
+
+    #[structopt(long)]
+    /// MDT device index that provides changelogs
+    mdt: u32,
+
+    #[structopt(long)]
+    /// Remote FS name
+    remotefs: String,
+
+    #[structopt(long)]
+    /// IML mailbox name, e.g. `mailbox1`, where `filesync` will write FIDs
+    mailbox: String,
+}
+
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,
+            "mdt={fs}-MDT{mdt:04x}\n\
+             remotefs={remotefs}\n\
+             iml-socket={mailbox}\n\
+             ",
+            fs = self.fs,
+            mdt = self.mdt,
+            remotefs = self.remotefs,
+            mailbox = postoffice::socket_name(&self.mailbox),
+        )
+    }
+}
+
+fn expand_path_fmt(path_fmt: &str, c: &Config) -> strfmt::Result<String> {
+    let mut vars = HashMap::new();
+    let mdt = format!("MDT{:04x}", c.mdt);
+    vars.insert("fs".to_string(), &c.fs);
+    vars.insert("mdt".to_string(), &mdt);
+    vars.insert("remotefs".to_string(), &c.remotefs);
+    vars.insert("mailbox".to_string(), &c.mailbox);
+    strfmt::strfmt(&path_fmt, &vars)
+}
+
+fn format_filesync_conf_file(c: &Config) -> Result<PathBuf, ImlAgentError> {
+    let path_fmt = env::get_var("FILESYNC_CONF_PATH");
+    Ok(PathBuf::from(expand_path_fmt(&path_fmt, &c)?))
+}
+
+fn format_filesync_unit_file(c: &Config) -> PathBuf {
+    PathBuf::from(format!(
+        "/etc/systemd/system/filesync-{}-MDT{:04x}.service",
+        c.fs, c.mdt
+    ))
+}
+
+fn format_filesync_unit_contents(c: &Config) -> Result<String, ImlAgentError> {
+    Ok(format!(
+        "[Unit]\n\
+         Description=Run filesync service for {fs}-MDT{mdt:04x}\n\
+         \n\
+         [Service]\n\
+         ExecStart=/usr/bin/filesync -f {conf}\n",
+        conf = format_filesync_conf_file(c)?.to_string_lossy(),
+        fs = c.fs,
+        mdt = c.mdt,
+    ))
+}
+
+async fn write(file: PathBuf, cnt: String) -> Result<(), ImlAgentError> {
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(&parent).await?;
+    }
+    fs::write(file, cnt.as_bytes()).err_into().await
+}
+
+pub async fn create_filesync_service_unit(c: Config) -> Result<(), ImlAgentError> {
+    let path = format_filesync_conf_file(&c)?;
+    let cnt = format!("{}", &c);
+    write(path, cnt).await?;
+
+    let path = format_filesync_unit_file(&c);
+    let cnt = format_filesync_unit_contents(&c)?;
+    write(path, cnt).await
+}
+
+#[cfg(test)]
+mod filesync_tests {
+    use super::*;
+    use insta::assert_display_snapshot;
+    use std::env;
+
+    #[test]
+    fn test_expand_path_fmt() {
+        let config = Config {
+            fs: "LU_TEST1".into(),
+            mdt: 16,
+            remotefs: "remotefs".into(),
+            mailbox: "mailbox".into(),
+        };
+        let fmt1 = "/etc/systemd/system/filesync-{fs}-{mdt}.service";
+        assert_eq!(
+            expand_path_fmt(fmt1, &config),
+            Ok("/etc/systemd/system/filesync-LU_TEST1-MDT0010.service".to_string())
+        );
+
+        let fmt2 = "/tmp/test/filesync-{fs}-{remotefs}.test";
+        assert_eq!(
+            expand_path_fmt(fmt2, &config),
+            Ok("/tmp/test/filesync-LU_TEST1-FAST_POOL.test".to_string())
+        );
+
+        let fmt3 = "filesync-{unknown_value}.service";
+        assert!(expand_path_fmt(fmt3, &config).is_err());
+    }
+
+    #[test]
+    fn test_expand_path_fmt_env() {
+        let config = Config {
+            fs: "LU_TEST1".into(),
+            mdt: 16,
+            remotefs: "REMOTEFS".into(),
+            mailbox: "mailbox".into(),
+        };
+        env::set_var("FILESYNC_CONF_PATH", "/etc/filesync/{fs}-{mdt}.conf");
+        assert_eq!(
+            format_filesync_conf_file(&config).unwrap(),
+            PathBuf::from("/etc/filesync/LU_TEST1-MDT0010.conf")
+        )
+    }
+
+    #[tokio::test]
+    async fn test_works() {
+        // for postoffice::socket_name()
+        env::set_var("SOCK_DIR", "/run");
+        env::set_var("FILESYNC_CONF_PATH", "/etc/filesync/{fs}-{mdt}.conf");
+        let config = Config {
+            fs: "LU_TEST2".into(),
+            mdt: 17,
+            mailbox: "mailbox2".into(),
+            remotefs: "REMOTEFS".into(),
+        };
+
+        let content = format_filesync_unit_contents(&config).expect("cannot generate unit");
+        assert_display_snapshot!(content);
+    }
+}

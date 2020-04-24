@@ -4,7 +4,7 @@
 
 use crate::action_plugins::{
     check_kernel, check_stonith, firewall_cmd, high_availability, kernel_module, lamigo, lpurge,
-    ltuer, lustre,
+    filesync, ltuer, lustre,
     ntp::{action_configure, is_ntp_configured},
     ostpool, package, postoffice,
     stratagem::{action_purge, action_warning, server},
@@ -57,6 +57,8 @@ pub fn create_registry() -> action_plugins::Actions {
         .add_plugin("postoffice_remove", postoffice::route_remove)
         .add_plugin("create_lpurge_conf", lpurge::create_lpurge_conf)
         .add_plugin("create_lamigo_service", lamigo::create_lamigo_service_unit)
+	.add_plugin("create_filesync_service",
+		    filesync::create_filesync_service_unit)
         .add_plugin(
             "configure_ntp",
             action_configure::update_and_write_new_config,

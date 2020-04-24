@@ -4,7 +4,7 @@
 
 use console::{style, Term};
 use iml_agent::action_plugins::{
-    check_kernel, check_stonith, high_availability, kernel_module, lamigo, lpurge, ltuer, lustre,
+    check_kernel, check_stonith, high_availability, kernel_module, lamigo, lpurge, ltuer, filesync, lustre,
     ntp::{action_configure, is_ntp_configured},
     ostpool, package, postoffice,
     stratagem::{
@@ -326,6 +326,14 @@ pub enum App {
         #[structopt(flatten)]
         c: lamigo::Config,
     },
+
+    #[structopt(name = "filesync")]
+    /// Create `fileysnc` systemd unit
+    FileSync {
+        #[structopt(flatten)]
+        c: filesync::Config,
+    },
+
 
     #[structopt(name = "postoffice")]
     /// Add or Remove PostOffice routes
@@ -681,6 +689,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         App::LAmigo { c } => {
             if let Err(e) = lamigo::create_lamigo_service_unit(c).await {
+                eprintln!("{}", e);
+                exit(exitcode::SOFTWARE);
+            }
+        }
+	App::FileSync { c } => {
+            if let Err(e) = filesync::create_filesync_service_unit(c).await {
                 eprintln!("{}", e);
                 exit(exitcode::SOFTWARE);
             }
